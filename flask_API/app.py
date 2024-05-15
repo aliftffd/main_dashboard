@@ -1,5 +1,6 @@
-from flask import Flask, render_template, request
+from flask import Flask, request
 from flask_socketio import SocketIO
+from flask_cors import CORS
 from random import random
 from threading import Lock
 from datetime import datetime
@@ -7,6 +8,7 @@ from datetime import datetime
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'donsky!'
 socketio = SocketIO(app, cors_allowed_origins='*')
+CORS(app, resources={r"/*": {"origins": "http://127.0.0.1:5175"}})  # Allow requests from Vite React frontend
 
 thread = None
 thread_lock = Lock()
@@ -37,7 +39,7 @@ def connect():
 
 @socketio.on('disconnect')
 def disconnect():
-    print('Client disconnected',  request.sid)
+    print('Client disconnected', request.sid)
 
 if __name__ == '__main__':
     socketio.run(app, host='localhost', port=5001)

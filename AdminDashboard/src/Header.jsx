@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 //import axios from axios // untuk dihubungkan ke api
 import { MdOutlineSpeed, MdHistory, MdQuestionMark, MdTrain, MdLocationOn, MdSearch, MdFormatAlignJustify, MdOutlineNotificationsActive, MdPerson } from 'react-icons/md'
 import './App.css'
+import axios from 'axios';
 
 function Header({ OpenSidebar }) {
   const [hasNotification, setHasNotification] = useState(false);
@@ -12,7 +13,7 @@ function Header({ OpenSidebar }) {
     //simulasi pengecekan data yang melebihi batas yang ditentukan
     const checkData = async () => {
       try {
-        const response = await axios.get('http://127.0.0.1:5000/check-data');
+        const response = await axios.get('http://localhost:5001');
         if (response.data.dataLimitExceeded) {
           setHasNotification(true);
           setNotificationMessage('Data melebihi batas yang diizinkan!');
