@@ -1,14 +1,24 @@
 from flask import Flask, request
 from flask_socketio import SocketIO
 from flask_cors import CORS
+import firebase_admin
+from firebase_admin import credentials, firestore
 from random import random
 from threading import Lock
 from datetime import datetime
 
+# Initialize Flask app
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'donsky!'
+app.config['SECRET_KEY'] = 'ATP2023!'
+
+# Initialize Firebase Admin SDK
+cred = credentials.Certificate('') # input JSON path for firebase database; 
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# Initialize Flask-SocketIO
 socketio = SocketIO(app, cors_allowed_origins='*')
-CORS(app, resources={r"/*": {"origins": "http://127.0.0.1:5175"}})  # Allow requests from Vite React frontend
+CORS(app, resources={r"/*": {"origins": "http://127.0.0.1:5175"}})
 
 thread = None
 thread_lock = Lock()
@@ -21,8 +31,19 @@ def background_thread():
     print("Generating random sensor values")
     while True:
         dummy_sensor_value = round(random() * 100, 3)
-        socketio.emit('sensorData', {'value': dummy_sensor_value, "date": get_current_datetime()})
-        socketio.sleep(1)
+        socketio.emit('sensorData', {'value': dummy_sensor_value, 'date': get_current_datetime()})
+
+        try:
+            # Store data in Firebase Firestore
+            data = {
+                'value': dummy_sensor_value,
+                'date': get_current_datetime()
+            }
+            db.collection('iot_data').add(data)
+        except Exception as e:
+            print(f"Error inserting data into Firebase: {e}")
+
+        socketio.sleep(10)
 
 @app.route('/')
 def index():
