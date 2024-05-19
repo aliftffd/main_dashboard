@@ -80,7 +80,7 @@ function Home() {
             <h3>Speed Rated</h3>
             <MdOutlineSpeed className='card_icon' />
           </div>
-          <h3 id='speedValue'>{sensorData.length > 0 ? sensorData[sensorData.length - 1].value : 0}</h3>
+          <h3 id='speedValue'>{sensorData.length > 0 ? `${sensorData[sensorData.length - 1].value} Km/h` : '0 Km/h'}</h3>
         </div>
         <div className='card'>
           <div className='card-inner'>
