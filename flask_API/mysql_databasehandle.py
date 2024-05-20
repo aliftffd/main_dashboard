@@ -3,7 +3,7 @@ from flask_socketio import SocketIO
 from flask_cors import CORS
 import firebase_admin
 import mysql.connector
-# from firebase_admin import credentials, firestore
+# from firebase_admin import credentials, firestore (optional code for firebase handling) 
 from random import random
 from threading import Lock
 from datetime import datetime
