@@ -1,43 +1,92 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { MdOutlineSpeed, MdTrain, MdLocationOn } from 'react-icons/md';
-import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts'; // Import Legend from recharts
+import { MapContainer, TileLayer, Polyline, Marker, Popup } from 'react-leaflet';
+import { LineChart, Line, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import GaugeComponent from 'react-gauge-component';
 import io from 'socket.io-client';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-const MAX_DATA_COUNT = 10;
+const MAX_DATA_COUNT = 20;
 const MAX_SPEED = 100;
-
 const gaugeLimits = [
-  { limit: 20, color: '#EA4228', showTick: true },
-  { limit: 40, color: '#F58B19', showTick: true },
-  { limit: 60, color: '#F5CD19', showTick: true },
-  { limit: MAX_SPEED, color: '#5BE12C', showTick: true },
+  { limit: 20, color: '#5BE12C', showTick: true },
+  { limit: 40, color: '#F5CD19', showTick: true },
+  { limit: 60, color: '#F58B19', showTick: true },
+  { limit: MAX_SPEED, color: '#EA4228', showTick: true },
 ];
+
+const staticSpeedData = [
+  { distance: 10, speed: 100 },
+  { distance: 20, speed: 85 },
+  { distance: 30, speed: 75 },
+  { distance: 40, speed: 65 },
+  { distance: 50, speed: 55 },
+  { distance: 60, speed: 0 },
+];
+
+const gambirCoord = [-6.17665, 106.83068];
+const bandungCoord = [-6.90030, 107.61860];
+
+const markerIcon = new L.Icon({
+  iconUrl: 'path-to-your-image.png', // Provide the path to your marker image
+  iconSize: [32, 32],
+});
 
 function Home() {
   const [sensorData, setSensorData] = useState([]);
-  const [socketConnected, setSocketConnected] = useState([]);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [gaugeValue, setGaugeValue] = useState(0);
-  const chartRef = useRef(null);
-  const myChart = useRef(null);
+  const [distanceData, setDistanceData] = useState([]);
+  const [showMap, setShowMap] = useState(false);
+  const [trainPosition, setTrainPosition] = useState(gambirCoord);
 
-  const gaugeValueInPercentage = (gaugeValue) => {
-    return (gaugeValue / MAX_SPEED) * 100;
+  const kmhToMs = (value) => {
+    if (value >= 1) {
+      const msValue = value / 3.6;
+      return { value: msValue.toFixed(2), unit: 'm/s' };
+    } else {
+      return { value: value.toFixed(2), unit: 'km/h' };
+    }
+  };
+
+  const calculateDistance = (data) => {
+    let distance = 0;
+    const distanceData = data.map((point, index) => {
+      if (index === 0) {
+        return { ...point, distance };
+      }
+      const prevPoint = data[index - 1];
+      const timeDiff = (new Date(point.date) - new Date(prevPoint.date)) / 1000; // time difference in seconds
+      const speedMs = prevPoint.speed / 3.6; // convert speed to m/s
+      distance += speedMs * timeDiff; // distance in meters
+      return { ...point, distance: distance / 1000 }; // convert to kilometers
+    });
+    return distanceData;
+  };
+
+  const interpolatePosition = (speed) => {
+    const totalDistance = 100; // Assuming the total distance between Gambir and Bandung is 100 km for simplicity
+    const ratio = speed / totalDistance;
+
+    const lat = gambirCoord[0] + ratio * (bandungCoord[0] - gambirCoord[0]);
+    const lon = gambirCoord[1] + ratio * (bandungCoord[1] - gambirCoord[1]);
+
+    return [lat, lon];
   };
 
   useEffect(() => {
     const URL = "http://localhost:5001";
     const socket = io(URL, {
-      pinTimeout : 30000,
-      pingInterval : 5000,
-      upgradeTimeout : 30000, 
-      cors : { 
-        origin : "http://localhost:5001",
+      pinTimeout: 30000,
+      pingInterval: 5000,
+      upgradeTimeout: 30000,
+      cors: {
+        origin: "http://localhost:5001",
       }
     });
+
     socket.connect();
-    console.log(socket)
-    
     socket.on("connect_error", (err) => {
       console.log(`connect_error due to ${err.message}`);
     });
@@ -50,25 +99,27 @@ function Home() {
       setSocketConnected(false);
     });
 
-    socket.on('sensorData', ({ value }) => {
-      console.log(value); // Destructure the 'value' from the data object
-      setSensorData(prevData => [...prevData, { value }].slice(-MAX_DATA_COUNT));
-      setGaugeValue(value); // Set the gauge value directly from the 'value' property
-    
-      const speedValueElement = document.getElementById('speedValue');
-      if (speedValueElement) {
-        speedValueElement.innerText = value; // Update the speed value in the DOM if the element exists
-      }
+    socket.on('sensorData', ({ value, date }) => {
+      setSensorData(prevData => {
+        const newData = [...prevData, { date, speed: value }].slice(-MAX_DATA_COUNT);
+        setDistanceData(calculateDistance(newData));
+        return newData;
+      });
+      setGaugeValue(value);
+      setShowMap(value >= 60); // Show map if speed >= 60
+
+      const position = interpolatePosition(value);
+      setTrainPosition(position);
     });
-    
+
     return () => {
       socket.disconnect();
-      if (myChart.current) {
-        myChart.current.destroy();
-      }
     };
   }, []);
-  
+
+  const lastSensorData = sensorData.length > 0 ? sensorData[sensorData.length - 1].speed : 0;
+  const { value: convertedValue, unit: speedUnit } = kmhToMs(lastSensorData);
+
   return (
     <main className='main-container'>
       <div className='main-title'>
@@ -80,52 +131,96 @@ function Home() {
             <h3>Speed Rated</h3>
             <MdOutlineSpeed className='card_icon' />
           </div>
-          <h3 id='speedValue'>{sensorData.length > 0 ? `${sensorData[sensorData.length - 1].value} Km/h` : '0 Km/h'}</h3>
+          <div className="d-flex align-items-center">
+            <h2 id='speedValue'>{convertedValue}</h2>
+            <span className="unit">{speedUnit}</span>
+          </div>
+          <small className="text-muted">Kecepatan yang Terbaca oleh Radar</small>
         </div>
         <div className='card'>
           <div className='card-inner'>
             <h3>Train Position</h3>
             <MdTrain className='card_icon' />
           </div>
-          <h3>33</h3>
+          <div className="d-flex align-items-center">
+            <h2>33</h2> {/* untuk dihubungkan dengan sensor */}
+            <span className="unit">km</span>
+          </div>
+          <small className="text-muted">Posisi terhadap Jarak</small>
         </div>
         <div className='card'>
           <div className='card-inner'>
             <h3>Blocking</h3>
             <MdLocationOn className='card_icon' />
           </div>
-          <h3>42</h3>
+          <div className="d-flex align-items-center">
+            <h2>42</h2> {/* untuk dihubungkan dengan sensor */}
+          </div>
+          <small className="text-muted">Posisi Kereta</small>
         </div>
       </div>
-      <div className='charts-wrapper' style={{ display: 'flex', justifyContent: 'space-between' }}> {/* Add a style to display the charts side by side */}
-      <div className='line-chart' style={{ flex: 1 }}> {/* Add a style to make the chart take up half the space */}
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            width={500}
-            height={300}
-            data={sensorData.map(({ value, ...rest }) => ({ ...rest, speed: value }))}
-            margin={{
-              top: 5,
-              right: 30,
-              left: 20,
-              bottom: 5,
-            }}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="date" />
-            <YAxis />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="speed" stroke="#8884d8" activeDot={{ r: 8 }} /> {/* Change 'value' to 'speed' */}
-          </LineChart>
-        </ResponsiveContainer>
+      <div className='charts-wrapper'>
+        {showMap ? (
+          <div className='map-container' style={{ height: '500px', width: '100%' }}>
+            <h3>Railway Map</h3>
+            <MapContainer center={[-6.5383, 107.2244]} zoom={9} style={{ height: '100%', width: '100%' }}>
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              />
+              <Polyline positions={[gambirCoord, bandungCoord]} color="blue" />
+              <Marker position={trainPosition} icon={markerIcon}>
+                <Popup>Current Train Position</Popup>
+              </Marker>
+            </MapContainer>
+          </div>
+        ) : (
+          <div className='line-chart'>
+            <ResponsiveContainer width="100%" height="100%">
+              <h3>Grafik kecepatan terhadap jarak</h3>
+              <LineChart
+                width={500}
+                height={300}
+                data={distanceData}
+                margin={{
+                  top: 5,
+                  right: 30,
+                  left: -30,
+                  bottom: 5,
+                }}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="distance" label={{ value: "Jarak (km)", position: 'insideBottomRight', offset: 0 }} />
+                <YAxis label={{ value: "Kecepatan (m/s)", angle: -90, position: 'insideLeft' }} />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="speed" stroke="#8884d8" activeDot={{ r: 8 }} />
+                <Line type="monotone" dataKey="speed" data={staticSpeedData} stroke="green" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
+        <div className='gauge-chart' style={{ flex: 1, maxWidth: '500px' }}>
+          <h3>Gauge Chart</h3>
+          <GaugeComponent
+            arc={{
+              nbSubArcs: gaugeLimits.length,
+              colorArray: gaugeLimits.map(limit => limit.color),
+              width: 0.3,
+              padding: 0.003
+            }}
+            labels={{
+              valueLabel: {
+                fontSize: 40,
+                formatTextValue: value => kmhToMs(value).value + ' ' + kmhToMs(value).unit
+              }
+            }}
+            value={gaugeValue}
+            maxValue={MAX_SPEED}
+          />
+        </div>
       </div>
-      <div className='gauge-chart' style={{ flex: 1, maxWidth: '500px' }}> {/* Add a style to make the chart take up half the space */}
-        <GaugeComponent 
-        arc={{ subArcs: gaugeLimits }}
-        value={gaugeValueInPercentage(gaugeValue)} />
-      </div>
-    </div>
-  </main>
-  )
+    </main>
+  );
 }
+
 export default Home;

@@ -24,37 +24,51 @@ def get_current_datetime():
     return now.strftime("%m/%d/%Y %H:%M:%S")
 
 def background_thread():
-    print("Generating random sensor values")
+    print("Reading sensor values and calculating distance")
 
     # MySQL connection
     conn = mysql.connector.connect(
-        user='username',
-        password='password',
-        host='localhost',
-        database='database name'
+        user='',
+        password='',
+        host='',
+        database=''
     )
     cursor = conn.cursor()
 
     # Create table if it doesn't exist
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS iot_data (
+        CREATE TABLE IF NOT EXISTS iot_data3 (
             id INT AUTO_INCREMENT PRIMARY KEY,
-            value FLOAT,
+            speed FLOAT,
+            distance FLOAT,
             date VARCHAR(255)
         )
     ''')
     conn.commit()
 
+    previous_time = datetime.now()
+    total_distance = 0.0
+
     while True:
-        dummy_sensor_value = round(random() * 100, 3)
-        date_time = get_current_datetime()
-        socketio.emit('sensorData', {'value': dummy_sensor_value, 'date': date_time})
+        current_time = datetime.now()
+        time_interval = (current_time - previous_time).total_seconds()
+        previous_time = current_time
+
+        # Replace this with actual sensor reading logic
+        speed = round(random() * 100, 3)
+
+        distance = speed * time_interval
+        total_distance += distance
+        date_time = current_time.strftime("%m/%d/%Y %H:%M:%S")
+
+        data = {'speed': speed, 'distance': total_distance, 'date': date_time}
+        socketio.emit('sensorData', data)
 
         try:
             # Insert data into MySQL database
             cursor.execute('''
-                INSERT INTO iot_data (value, date) VALUES (%s, %s)
-            ''', (dummy_sensor_value, date_time))
+                INSERT INTO iot_data3 (speed, distance, date) VALUES (%s, %s, %s)
+            ''', (speed, total_distance, date_time))
             conn.commit()
         except Exception as e:
             print(f"Error inserting data into MySQL: {e}")
@@ -65,6 +79,11 @@ def background_thread():
     # Close the connection when the thread is done (this will not be reached in an infinite loop)
     cursor.close()
     conn.close()
+
+def read_speed_from_sensor():
+    # Dummy implementation, replace with actual sensor reading code
+    return round(random() * 100, 3)
+
 
 @app.route('/')
 def index():

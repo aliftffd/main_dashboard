@@ -12,7 +12,7 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ATP2023!'
 
 # Initialize Firebase Admin SDK
-cred = credentials.Certificate('') # input JSON path for firebase database; 
+cred = credentials.Certificate('/home/dartvader/main_project/real_project/main_dashboard/flask_API/projecttest-17ae4-firebase-adminsdk-bzp5z-ba840dff8a.json') # input JSON path for firebase database; 
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
