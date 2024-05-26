@@ -9,7 +9,7 @@ class RFIDReader:
         self.stop_event = threading.Event()
         self.callback = callback
         self.tag_names = {
-            b'\xE2\x00\x20\x23\x12\x05\xEE\xAA\x00\x01\x00\x73': "TAG 1",
+            b'\xE2\x00\x20\x23\x12\x05\xEE\xAA\x00\x01\x00\x73': "TAG 1", # this id already written on the tag 
             b'\xE2\x00\x20\x23\x12\x05\xEE\xAA\x00\x01\x00\x76': "TAG 2"
         }
 
@@ -28,7 +28,7 @@ class RFIDReader:
                         self.callback(timestamp, name, tag_id)
                         break
             else:
-                print("Tidak ada data diterima atau data tidak lengkap")
+                print("No data received or incomplete data")
 
             time.sleep(0.1)
 
