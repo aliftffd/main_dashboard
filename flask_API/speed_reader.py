@@ -11,7 +11,7 @@ class SpeedDetect:
     def read_speed(self): 
         while not self.stop_event.is_set(): 
             try: 
-                data = self.serial_port.readline().decode("utf-8").strip()
+                data = self.serial_port.readline().decode("utf-8").strip() # read serial data from sensor 
                 flt = float(data)
                 timestamp = self.get_current_datetime()
                 self.callback(timestamp,flt)
